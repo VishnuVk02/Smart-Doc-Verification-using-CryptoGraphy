@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --bg-color: #0d1117;
+  --text-color: #e6edf3;
+  --primary-color: #2f81f7;
+  --primary-hover: #388bfd;
+  --panel-bg: #161b22;
+  --border-color: #30363d;
+  --success-color: #238636;
+  --error-color: #da3633;
+}
+
+@theme {
+  --color-primary: #2f81f7;
+  --color-primary-hover: #388bfd;
+  --color-background: #0d1117;
+  --color-panel: #161b22;
+  --color-border: #30363d;
+}
+
+body {
+  @apply bg-background text-white min-h-screen overflow-x-hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.auth-gradient {
+  background: radial-gradient(circle at top right, #0d1117 0%, #000000 100%);
+}
+
+.glass-morphism {
+  @apply bg-panel/60 backdrop-blur-xl border border-border shadow-2xl;
+}
