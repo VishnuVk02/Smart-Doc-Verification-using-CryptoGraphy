@@ -27,3 +27,5 @@ yarn-error.log*
 .vscode/
 .idea/
 Thumbs.db
+
+./credentials.txt   

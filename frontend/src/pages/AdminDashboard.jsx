@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { logout } from '../store/slices/authSlice';
-import { UploadCloud, FileText, Activity, Users, LogOut, CheckCircle, ShieldAlert, FileSearch, Loader2, Trash2, Calendar, TrendingUp, Minimize2, Download, Zap } from 'lucide-react';
+import { UploadCloud, FileText, Activity, Users, LogOut, CheckCircle, ShieldAlert, FileSearch, Loader2, Trash2, Calendar, TrendingUp, Minimize2, Download, Zap, Mail, Send } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line } from 'recharts';
 import jsPDF from 'jspdf';
@@ -19,7 +19,7 @@ const AdminDashboard = () => {
     const [adminStats, setAdminStats] = useState({ userStats: [], docStats: [], verificationActivity: [] });
     const [documents, setDocuments] = useState([]);
     const [logs, setLogs] = useState([]);
-    const [file, setFile] = useState(null);
+    const [files, setFiles] = useState([]);
     const [uploadStatus, setUploadStatus] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -85,41 +85,72 @@ const AdminDashboard = () => {
     };
 
     const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const selectedFile = e.target.files[0];
-            if (selectedFile.size > 1 * 1024 * 1024) {
-                alert('File size too large. Maximum size is 1MB.');
-                e.target.value = null; // Reset input
-                return;
-            }
-            setFile(selectedFile);
+        if (e.target.files && e.target.files.length > 0) {
+            const selectedFiles = Array.from(e.target.files);
+            let sizeError = false;
+
+            setFiles(prevFiles => {
+                const newValidFiles = [];
+                selectedFiles.forEach(file => {
+                    if (file.size > 1 * 1024 * 1024) {
+                        sizeError = true;
+                    } else if (!prevFiles.some(f => f.name === file.name && f.size === file.size)) {
+                        newValidFiles.push(file);
+                    }
+                });
+
+                if (sizeError) {
+                    setTimeout(() => alert('Some individual files exceed the 1MB limit and were ignored.'), 50);
+                }
+
+                return [...prevFiles, ...newValidFiles];
+            });
+            
             setUploadStatus(null);
+            e.target.value = null; // Reset input
         }
     };
 
-    const handleUpload = async () => {
-        if (!file) return;
-        setIsUploading(true);
-        const formData = new FormData();
-        formData.append('document', file);
+    const removeFile = (fileName) => {
+        setFiles(prev => prev.filter(f => f.name !== fileName));
+    };
 
-        try {
-            const res = await ax.post('/documents/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            setUploadStatus({ type: 'success', message: res.data.message });
-            setFile(null);
-            fetchStats();
-            fetchDocuments();
-            fetchAdminStats();
-        } catch (err) {
-            setUploadStatus({
-                type: 'error',
-                message: err.response?.data?.message || 'Upload failed'
-            });
-        } finally {
-            setIsUploading(false);
+    const handleUpload = async () => {
+        if (!files || files.length === 0) return;
+        setIsUploading(true);
+        
+        let successCount = 0;
+        let failCount = 0;
+        let lastError = null;
+
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('document', file);
+
+            try {
+                await ax.post('/documents/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                successCount++;
+            } catch (err) {
+                failCount++;
+                lastError = err.response?.data?.message || 'Upload failed';
+            }
         }
+
+        if (failCount === 0) {
+            setUploadStatus({ type: 'success', message: `${successCount} document(s) registered successfully!` });
+        } else if (successCount > 0) {
+            setUploadStatus({ type: 'error', message: `${successCount} registered, ${failCount} failed. Last error: ${lastError}` });
+        } else {
+            setUploadStatus({ type: 'error', message: `Registration failed. Error: ${lastError}` });
+        }
+        
+        setFiles([]);
+        fetchStats();
+        fetchDocuments();
+        fetchAdminStats();
+        setIsUploading(false);
     };
 
     const handleDeleteDocument = async (id) => {
@@ -150,6 +181,53 @@ const AdminDashboard = () => {
         doc.text('--- System Generated Cryptographic Proof ---', 20, 100);
 
         doc.save(`${log.documentName}_Verification_Report.pdf`);
+    };
+
+    const handleForwardWithFiles = async (log) => {
+        const docName = log.documentName;
+        const doc = new jsPDF();
+        doc.setFontSize(18);
+        doc.text('Smart Document Verification Report', 20, 20);
+
+        doc.setFontSize(12);
+        doc.text(`Document Name: ${docName}`, 20, 40);
+        doc.text(`Verification Date: ${new Date(log.createdAt).toLocaleString()}`, 20, 50);
+        doc.text(`Generated Hash: ${log.generatedHash}`, 20, 60);
+        doc.text(`Status: ${log.verificationResult}`, 20, 70);
+        if (log.documentId) doc.text(`Document ID: ${log.documentId}`, 20, 80);
+
+        doc.setTextColor(100);
+        doc.text('--- System Generated Cryptographic Proof ---', 20, 100);
+
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], `${docName}_Verification_Report.pdf`, { type: 'application/pdf' });
+
+        alert('Due to browser security restrictions, files cannot be automatically attached to web email clients. The PDF report will be downloaded to your computer. Please drag and drop it into the email window that just opened.');
+        
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const link1 = document.createElement('a');
+        link1.href = pdfUrl;
+        link1.download = pdfFile.name;
+        link1.click();
+        
+        handleForwardEmail(log, docName);
+    };
+
+    const handleForwardEmail = (log, docName) => {
+        const timestamp = new Date(log.createdAt).toLocaleString();
+        const subject = encodeURIComponent(`SmartDoc Verification Report: ${docName}`);
+        const body = encodeURIComponent(
+            `Smart Document Verification Details:\n\n` +
+            `Document Name: ${docName}\n` +
+            `Status: ${log.verificationResult}\n` +
+            `Verification Date: ${timestamp}\n` +
+            `Document ID: ${log.documentId || 'N/A'}\n` +
+            `Hash Value: ${log.generatedHash}\n\n` +
+            `--- This is a system generated cryptographic proof ---`
+        );
+
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${subject}&body=${body}`;
+        window.open(gmailUrl, '_blank');
     };
 
     return (
@@ -365,24 +443,29 @@ const AdminDashboard = () => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
-                            className="max-w-3xl"
+                            className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl"
                         >
-                            <div className="bg-panel/40 border border-border rounded-3xl p-8 md:p-12 mb-8">
+                            <div className="lg:col-span-7 flex flex-col gap-8">
+                                <div className="bg-panel/40 border border-border rounded-3xl p-8 md:p-12">
                                 <h2 className="text-2xl font-bold text-white mb-2">Secure Document Registry</h2>
                                 <p className="text-slate-400 mb-10 leading-relaxed">
                                     Upload original documents to the system to generate secure cryptographic hashes. These hashes will be used for future verification.
                                 </p>
 
                                 <label className="relative flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-3xl bg-black/20 hover:bg-white/5 hover:border-primary/50 transition-all cursor-pointer group mb-8">
-                                    <input type="file" className="hidden" onChange={handleFileChange} />
+                                    <input type="file" multiple className="hidden" onChange={handleFileChange} />
                                     <div className="p-6 rounded-full bg-primary/10 text-primary mb-6 group-hover:scale-110 transition-transform">
                                         <UploadCloud size={48} />
                                     </div>
-                                    <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors">
-                                        {file ? file.name : 'Select or drag document here'}
+                                    <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors text-center">
+                                        {files.length > 0 
+                                            ? `${files.length} file(s) selected: ${files.map(f => f.name).join(', ')}`.substring(0, 100) + (files.length > 3 ? '...' : '')
+                                            : 'Select or drag documents here'}
                                     </h3>
                                     <p className="text-slate-500 text-sm mt-3">
-                                        {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : 'Supported formats: PDF, PNG, JPG, DOCX'}
+                                        {files.length > 0
+                                            ? `Total size: ${(files.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB`
+                                            : 'Supported formats: PDF, PNG, JPG, DOCX (Max 1MB per file)'}
                                     </p>
                                 </label>
 
@@ -391,7 +474,7 @@ const AdminDashboard = () => {
                                     whileTap={{ scale: 0.98 }}
                                     className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                                     onClick={handleUpload}
-                                    disabled={!file || isUploading}
+                                    disabled={files.length === 0 || isUploading}
                                 >
                                     {isUploading ? <Loader2 className="animate-spin" size={20} /> : <UploadCloud size={20} />}
                                     {isUploading ? 'Registering Hash...' : 'Register into System'}
@@ -407,6 +490,46 @@ const AdminDashboard = () => {
                                     >
                                         {uploadStatus.type === 'success' ? <CheckCircle size={24} /> : <ShieldAlert size={24} />}
                                         <span className="font-medium">{uploadStatus.message}</span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            </div>
+
+                            {/* Right side: Selected Files Card */}
+                            <AnimatePresence>
+                                {files.length > 0 && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 20 }}
+                                        className="lg:col-span-5 bg-panel/40 border border-border rounded-3xl p-6 lg:p-8 self-start shadow-2xl flex flex-col max-h-[70vh] sticky top-8"
+                                    >
+                                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                                            <FileText size={20} className="text-primary" />
+                                            Selected Files ({files.length})
+                                        </h3>
+                                        <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 mb-6">
+                                            {files.map((f, idx) => (
+                                                <div key={idx} className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                                                    <div className="flex items-center gap-4 overflow-hidden">
+                                                        <div className="p-2.5 bg-primary/10 rounded-xl text-primary flex-shrink-0">
+                                                            <FileText size={20} />
+                                                        </div>
+                                                        <div className="truncate">
+                                                            <p className="text-white font-medium text-sm truncate">{f.name}</p>
+                                                            <p className="text-slate-500 text-xs mt-1">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => removeFile(f.name)} className="text-slate-500 hover:text-red-400 p-2 transition-colors flex-shrink-0" title="Remove file">
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="pt-5 border-t border-border flex justify-between items-center mt-auto">
+                                            <span className="text-slate-400 text-sm font-medium">Total Size</span>
+                                            <span className="text-primary font-bold text-lg">{(files.reduce((acc, f) => acc + f.size, 0) / 1024 / 1024).toFixed(2)} MB</span>
+                                        </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -498,12 +621,20 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-slate-500 font-mono">{log.ipAddress}</td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => downloadReport(log)}
-                                                        className="px-4 py-2 rounded-lg bg-white/5 text-slate-300 hover:bg-primary hover:text-white transition-all text-xs font-bold"
+                                                        className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-primary hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
+                                                        title="Download PDF"
                                                     >
-                                                        Report
+                                                        <FileText size={14} /> PDF
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleForwardWithFiles(log)}
+                                                        className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
+                                                        title="Forward Report"
+                                                    >
+                                                        <Send size={14} /> Forward
                                                     </button>
                                                 </td>
                                             </tr>
