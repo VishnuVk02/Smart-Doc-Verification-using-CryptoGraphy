@@ -1,0 +1,11 @@
+TypeError: pdfParse is not a function
+    at HashingService.generateHashAndMetadata (D:\smart doc\backend\services\HashingService.js:20:40)
+    at D:\smart doc\backend\routes\document.js:33:67
+    at Layer.handleRequest (D:\smart doc\backend\node_modules\router\lib\layer.js:152:17)
+    at next (D:\smart doc\backend\node_modules\router\lib\route.js:157:13)
+    at done (D:\smart doc\backend\node_modules\multer\lib\make-middleware.js:69:7)
+    at indicateDone (D:\smart doc\backend\node_modules\multer\lib\make-middleware.js:73:68)
+    at Multipart.<anonymous> (D:\smart doc\backend\node_modules\multer\lib\make-middleware.js:243:7)
+    at Multipart.emit (node:events:508:28)
+    at emitCloseNT (node:internal/streams/destroy:148:10)
+    at process.processTicksAndRejections (node:internal/process/task_queues:88:21)

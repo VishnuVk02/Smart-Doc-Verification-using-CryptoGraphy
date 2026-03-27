@@ -22,6 +22,7 @@ const UserDashboard = () => {
     const [compressFile, setCompressFile] = useState(null);
     const [compressedFile, setCompressedFile] = useState(null);
     const [isCompressing, setIsCompressing] = useState(false);
+    const [expandedRow, setExpandedRow] = useState(null);
 
     const ax = axios.create({
         baseURL: '/api',
@@ -517,7 +518,8 @@ const UserDashboard = () => {
                                                 <td colSpan="4" className="px-6 py-12 text-center text-slate-500 font-medium italic">No verification history found</td>
                                             </tr>
                                         ) : logs.map((log) => (
-                                            <tr key={log._id} className="hover:bg-white/5 transition-colors group">
+                                            <React.Fragment key={log._id}>
+                                            <tr onClick={() => setExpandedRow(expandedRow === log._id ? null : log._id)} className="hover:bg-white/5 transition-colors group cursor-pointer">
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-300">{new Date(log.createdAt).toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm font-bold text-white uppercase tracking-tight">{log.documentName}</td>
                                                 <td className="px-6 py-4">
@@ -530,14 +532,14 @@ const UserDashboard = () => {
                                                 </td>
                                                 <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => downloadReport(log, log.documentName)}
+                                                        onClick={(e) => { e.stopPropagation(); downloadReport(log, log.documentName); }}
                                                         className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-primary hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
                                                         title="Download PDF"
                                                     >
                                                         <FileText size={14} /> PDF
                                                     </button>
                                                     <button
-                                                        onClick={() => handleForwardWithFiles({ ...log, fileName: log.documentName })}
+                                                        onClick={(e) => { e.stopPropagation(); handleForwardWithFiles({ ...log, fileName: log.documentName }); }}
                                                         className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
                                                         title="Forward Report"
                                                     >
@@ -545,6 +547,31 @@ const UserDashboard = () => {
                                                     </button>
                                                 </td>
                                             </tr>
+                                            <AnimatePresence>
+                                                {expandedRow === log._id && (
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                    >
+                                                        <td colSpan="4" className="p-0 border-b border-border bg-black/40">
+                                                            <div className="p-6 grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                                                {log.extractedData && Object.keys(log.extractedData).length > 0 ? (
+                                                                    Object.entries(log.extractedData).map(([key, value]) => (
+                                                                        <div key={key}>
+                                                                            <span className="text-slate-500 font-bold uppercase tracking-wider text-xs block mb-1">{key}</span>
+                                                                            <span className={`font-medium ${key.toLowerCase() === 'name' ? 'text-emerald-400 font-bold' : 'text-white'}`}>{value}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="col-span-full text-slate-500 italic">No extracted metadata available.</div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+                                                )}
+                                            </AnimatePresence>
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>

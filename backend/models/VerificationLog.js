@@ -11,6 +11,7 @@ const verificationLogSchema = new mongoose.Schema({
     },
     documentId: { type: String, default: null }, // Null if invalid
     ipAddress: { type: String, default: 'Unknown' },
+    extractedData: { type: Object, default: {} },
 }, {
     timestamps: true
 });

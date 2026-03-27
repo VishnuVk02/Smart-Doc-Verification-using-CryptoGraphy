@@ -29,8 +29,8 @@ router.post('/upload', authMiddleware, adminMiddleware, upload.single('document'
             return res.status(400).json({ message: 'No document uploaded' });
         }
 
-        // Step 2 – Content-based Hash Generation (Letters and Logos)
-        const hashValue = await HashingService.generateContentHash(req.file.buffer, req.file.mimetype);
+        // Step 2 – Content-based Hash and Metadata Extraction
+        const { hashValue, extractedData } = await HashingService.generateHashAndMetadata(req.file.buffer, req.file.mimetype);
 
         // Step 3 – Duplicate Detection
         const existingDoc = await Document.findOne({ hashValue });
@@ -38,11 +38,11 @@ router.post('/upload', authMiddleware, adminMiddleware, upload.single('document'
             return res.status(400).json({ message: 'Document already exists' });
         }
 
-        // Parse additional generic metadata if provided
-        let metadata = {};
+        // Parse additional generic metadata if provided and merge with OCR extracted data
+        let metadata = { ...extractedData };
         if (req.body.metadata) {
             try {
-                metadata = JSON.parse(req.body.metadata);
+                metadata = { ...metadata, ...JSON.parse(req.body.metadata) };
             } catch (e) {
                 // do nothing
             }
@@ -93,7 +93,7 @@ router.post('/verify', upload.single('document'), async (req, res) => {
             return res.status(400).json({ message: 'No document uploaded to verify' });
         }
 
-        const generatedHash = await HashingService.generateContentHash(req.file.buffer, req.file.mimetype);
+        const { hashValue: generatedHash, extractedData } = await HashingService.generateHashAndMetadata(req.file.buffer, req.file.mimetype);
         const document = await Document.findOne({ hashValue: generatedHash });
 
         const userId = req.body.userId || null;
@@ -129,7 +129,8 @@ router.post('/verify', upload.single('document'), async (req, res) => {
             generatedHash,
             verificationResult: resultStatus,
             documentId: document ? document.documentId : null,
-            ipAddress
+            ipAddress,
+            extractedData
         });
 
         await log.save();
@@ -260,11 +261,11 @@ router.get('/admin-stats', authMiddleware, adminMiddleware, async (req, res) => 
             { $sort: { _id: 1 } }
         ]);
 
-        // Verification activity over the last 7 days (Line Chart)
+        // Verification activity over the last 30 days (Line Chart)
         const verificationActivity = await VerificationLog.aggregate([
             {
                 $match: {
-                    createdAt: { $gte: new Date(new Date().setDate(new Date().getDate() - 7)) }
+                    createdAt: { $gte: new Date(new Date().setDate(new Date().getDate() - 30)) }
                 }
             },
             {

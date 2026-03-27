@@ -27,6 +27,7 @@ const AdminDashboard = () => {
     const [compressFile, setCompressFile] = useState(null);
     const [compressedFile, setCompressedFile] = useState(null);
     const [isCompressing, setIsCompressing] = useState(false);
+    const [expandedRow, setExpandedRow] = useState(null);
 
     const ax = axios.create({
         baseURL: '/api',
@@ -371,7 +372,7 @@ const AdminDashboard = () => {
                                     </div>
                                 </motion.div>
 
-                                {/* Verification Activity (7d) */}
+                                {/* Verification Activity (30d) */}
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -380,7 +381,7 @@ const AdminDashboard = () => {
                                     <div className="flex items-center justify-between mb-6">
                                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                             <Activity size={20} className="text-purple-400" />
-                                            Verification Activity (7d)
+                                            Verification Activity (30d)
                                         </h3>
                                     </div>
                                     <div className="flex-1 w-full">
@@ -557,7 +558,8 @@ const AdminDashboard = () => {
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {documents.map((doc) => (
-                                            <tr key={doc._id} className="hover:bg-white/5 transition-colors group">
+                                            <React.Fragment key={doc._id}>
+                                            <tr onClick={() => setExpandedRow(expandedRow === doc._id ? null : doc._id)} className="hover:bg-white/5 transition-colors group cursor-pointer">
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-300">{new Date(doc.uploadDate).toLocaleDateString()}</td>
                                                 <td className="px-6 py-4 text-sm font-bold text-primary tracking-tight font-mono">{doc.documentId}</td>
                                                 <td className="px-6 py-4 text-sm font-bold text-white uppercase truncate max-w-[200px]">{doc.documentName}</td>
@@ -566,7 +568,7 @@ const AdminDashboard = () => {
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <button
-                                                        onClick={() => handleDeleteDocument(doc._id)}
+                                                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc._id); }}
                                                         className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all"
                                                         title="Permanently Delete Document"
                                                     >
@@ -574,6 +576,31 @@ const AdminDashboard = () => {
                                                     </button>
                                                 </td>
                                             </tr>
+                                            <AnimatePresence>
+                                                {expandedRow === doc._id && (
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                    >
+                                                        <td colSpan="5" className="p-0 border-b border-border bg-black/40">
+                                                            <div className="p-6 grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                                                {doc.metadata && Object.keys(doc.metadata).length > 0 ? (
+                                                                    Object.entries(doc.metadata).map(([key, value]) => (
+                                                                        <div key={key}>
+                                                                            <span className="text-slate-500 font-bold uppercase tracking-wider text-xs block mb-1">{key}</span>
+                                                                            <span className={`font-medium ${key.toLowerCase() === 'name' ? 'text-emerald-400 font-bold' : 'text-white'}`}>{value}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="col-span-full text-slate-500 italic">No extracted metadata available.</div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+                                                )}
+                                            </AnimatePresence>
+                                            </React.Fragment>
                                         ))}
                                         {documents.length === 0 && (
                                             <tr>
@@ -609,7 +636,8 @@ const AdminDashboard = () => {
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {logs.map((log) => (
-                                            <tr key={log._id} className="hover:bg-white/5 transition-colors group">
+                                            <React.Fragment key={log._id}>
+                                            <tr onClick={() => setExpandedRow(expandedRow === log._id ? null : log._id)} className="hover:bg-white/5 transition-colors group cursor-pointer">
                                                 <td className="px-6 py-4 text-sm font-medium text-slate-300">{new Date(log.createdAt).toLocaleString()}</td>
                                                 <td className="px-6 py-4 text-sm font-bold text-white uppercase tracking-tight">{log.documentName}</td>
                                                 <td className="px-6 py-4">
@@ -623,14 +651,14 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-4 text-sm text-slate-500 font-mono">{log.ipAddress}</td>
                                                 <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => downloadReport(log)}
+                                                        onClick={(e) => { e.stopPropagation(); downloadReport(log); }}
                                                         className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-primary hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
                                                         title="Download PDF"
                                                     >
                                                         <FileText size={14} /> PDF
                                                     </button>
                                                     <button
-                                                        onClick={() => handleForwardWithFiles(log)}
+                                                        onClick={(e) => { e.stopPropagation(); handleForwardWithFiles(log); }}
                                                         className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 hover:bg-blue-600 hover:text-white transition-all text-xs font-bold flex items-center gap-1.5"
                                                         title="Forward Report"
                                                     >
@@ -638,6 +666,31 @@ const AdminDashboard = () => {
                                                     </button>
                                                 </td>
                                             </tr>
+                                            <AnimatePresence>
+                                                {expandedRow === log._id && (
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                    >
+                                                        <td colSpan="5" className="p-0 border-b border-border bg-black/40">
+                                                            <div className="p-6 grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                                                {log.extractedData && Object.keys(log.extractedData).length > 0 ? (
+                                                                    Object.entries(log.extractedData).map(([key, value]) => (
+                                                                        <div key={key}>
+                                                                            <span className="text-slate-500 font-bold uppercase tracking-wider text-xs block mb-1">{key}</span>
+                                                                            <span className={`font-medium ${key.toLowerCase() === 'name' ? 'text-emerald-400 font-bold' : 'text-white'}`}>{value}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="col-span-full text-slate-500 italic">No extracted metadata available.</div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+                                                )}
+                                            </AnimatePresence>
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>
